@@ -1,14 +1,9 @@
-import os
-
 from flask import Flask, request, jsonify, abort
 import ollama
-import redis
+
+from .redis_helper import REDIS_CONNECTION
 
 app = Flask('AI server')
-
-REDIS_URL = os.environ["REDIS_URL"]
-
-REDIS_CONNECTION = redis.Redis.from_url(REDIS_URL)
 
 DEFAULT_MODEL = 'deepseek-coder-v2:latest'
 
