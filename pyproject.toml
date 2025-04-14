@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "ai_server"
+version = "0.0.1"
+authors = [
+  { name="David Liu", email="david@cs.toronto.edu" },
+]
+description = "A small server to control access to Ollama"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "flask",
+    "ollama",
+    "redis",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/MarkUsProject/ai-server"
+Issues = "https://github.com/MarkUsProject/ai-server/issues"
