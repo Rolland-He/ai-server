@@ -13,7 +13,7 @@ def authenticate() -> str:
     if not api_key:
         abort(401, description="Missing API key")
 
-    user = REDIS_CONNECTION.get(f"api_key:{api_key}")
+    user = REDIS_CONNECTION.get(f"api-key:{api_key}")
     if not user:
         abort(401, description="Invalid API key")
 
@@ -36,7 +36,7 @@ def chat():
         stream=False
     )
 
-    return jsonify(response)
+    return jsonify(response.message.content)
 
 @app.errorhandler(Exception)
 def internal_error(error):
