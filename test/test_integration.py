@@ -154,7 +154,6 @@ def test_model_quality():
         "Explain recursion in programming",
     ]
     
-    # Backup simpler questions if main ones timeout
     simple_questions = [
         "What is recursion?", 
         "Why use Git?"
