@@ -14,6 +14,7 @@ LLAMA_CPP_CLI = '/data1/llama.cpp/bin/llama-cli'
 GGUF_DIR = '/data1/GGUF'
 
 # Known llama.cpp model in /data1/GGUF/
+# We could add more models here if needed.
 LLAMACPP_MODEL_DIRS = [
     'DeepSeek-V2.5-IQ1_M',
     'DeepSeek-V3-0324-UD-IQ2_XXS', 
@@ -99,22 +100,20 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
         result = subprocess.run(
             cmd,
             capture_output=True,
-            text=False,  # Get bytes instead of text
+            text=False,
             timeout=timeout,
             check=True
         )
         
-        # Manually decode output with error handling
+        # For V3 IQ1_M and IQ2_XXS models
         try:
             stdout_text = result.stdout.decode('utf-8')
         except UnicodeDecodeError:
             # Fallback to decode with error handling for problematic characters
             stdout_text = result.stdout.decode('utf-8', errors='replace')
-        
-        # Parse output to extract response
+
         output_lines = stdout_text.strip().split('\n')
         response_lines = []
-        
         for line in output_lines:
             if any(skip_pattern in line for skip_pattern in LLAMACPP_SKIP_PATTERNS):
                 continue
@@ -131,7 +130,6 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
     except subprocess.TimeoutExpired:
         raise Exception(f"Llama.cpp request timed out for model {model}")
     except subprocess.CalledProcessError as e:
-        # Handle stderr decoding as well
         stderr_text = ""
         if e.stderr:
             try:
