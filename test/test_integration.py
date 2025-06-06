@@ -18,6 +18,38 @@ from ai_server.server import (
     LLAMACPP_MODEL_DIRS
 )
 
+def test_model_with_llamacpp(models, prompt, description_prefix="", timeout=300):
+    """
+    Helper function to test one or more models with llama.cpp.
+    
+    Args:
+        models: List of model names or single model name
+        prompt: The prompt to test with
+        description_prefix: Optional prefix for log messages
+        timeout: Timeout for llama.cpp calls
+    """
+    if isinstance(models, str):
+        models = [models]
+        
+    for test_model in models:
+        model_desc = f"{description_prefix}{test_model}" if description_prefix else test_model
+        print(f"\nTesting model: {model_desc}")
+        
+        if is_llamacpp_available(test_model):
+            print("Model detected as available in llama.cpp")
+            
+            try:
+                print("Calling llama.cpp...")
+                response = chat_with_llamacpp(test_model, prompt, timeout=timeout)
+                
+                print("Llama.cpp integration successful!")
+                print(f"Response: {response}")
+                
+            except Exception as e:
+                print(f"Llama.cpp integration failed: {e}")
+        else:
+            print("Model not detected in llama.cpp")
+
 def test_model_detection():
     """Test the model detection logic."""
     print("Testing Model Detection")
@@ -73,25 +105,7 @@ def test_llamacpp_integration():
     
     test_prompt = "Hello, respond with just 'Test successful'"
     
-    for test_model in test_cases:
-        print(f"\nTesting model: {test_model}")
-        
-        if is_llamacpp_available(test_model):
-            print("Model detected as available in llama.cpp")
-            
-            try:
-                print("Calling llama.cpp...")
-                response = chat_with_llamacpp(test_model, test_prompt)
-                
-                print("Llama.cpp integration successful!")
-                print(f"Response: {response}")
-                
-            except Exception as e:
-                print(f"Llama.cpp integration failed: {e}")
-        else:
-            print("Model not detected in llama.cpp")
-        
-    print()
+    test_model_with_llamacpp(test_cases, test_prompt)
 
 def test_ollama_fallback():
     """Test ollama fallback for models not in llama.cpp."""
@@ -125,25 +139,7 @@ def test_v3_models():
     
     test_prompt = "Hello, respond with just 'V3 Test successful'"
     
-    for test_model in v3_models:
-        print(f"\nTesting V3 model: {test_model}")
-        
-        if is_llamacpp_available(test_model):
-            print("V3 Model detected as available in llama.cpp")
-            
-            try:
-                print("Calling llama.cpp with V3 model...")
-                response = chat_with_llamacpp(test_model, test_prompt)
-                
-                print("V3 Model integration successful!")
-                print(f"Response: {response}")
-                
-            except Exception as e:
-                print(f"V3 Model integration failed: {e}")
-        else:
-            print("V3 Model not detected in llama.cpp")
-        
-    print()
+    test_model_with_llamacpp(v3_models, test_prompt, "V3 Model: ")
 
 def test_model_quality():
     """Test model quality with meaningful questions."""
@@ -170,19 +166,7 @@ def test_model_quality():
         print(f"\nQuestion: {question}")
         
         for model, description in test_models:
-            if is_llamacpp_available(model):
-                print(f"\n[{description}]")
-                try:
-                    print("Generating response...")
-                    response = chat_with_llamacpp(model, question, timeout=600)
-                    print(f"Response: {response}")
-                    
-                except Exception as e:
-                    print(f"Failed: {e}")
-            else:
-                print(f"\n[{description}] - Not available")
-        
-    print()
+            test_model_with_llamacpp([model], question, f"[{description}] ", timeout=600)
 
 def test_error_handling():
     """Test error handling for invalid models."""
