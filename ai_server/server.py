@@ -24,14 +24,14 @@ LLAMA_SERVER_URL = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080
 
 # Known llama.cpp model in /data1/GGUF/
 # We could add more models here if needed.
-LLAMACPP_MODEL_DIRS = [
+LLAMA_CPP_MODEL_DIRS = [
     'DeepSeek-V2.5-IQ1_M',
     'DeepSeek-V3-0324-UD-IQ2_XXS', 
     'DeepSeek-V3-0324-UD-Q2_K_XL'
 ]
 
 # Output parsing skip patterns for llama-cli
-LLAMACPP_SKIP_PATTERNS = [
+LLAMA_CPP_SKIP_PATTERNS = [
     'ggml_cuda_init:', 'warning:', 'build:', 'main:', 'llama_model_loader:',
     'print_info:', 'load:', 'load_tensors:', 'llama_context:', 
     'common_init_from_params:', 'system_info:', 'sampler', 'generate:'
@@ -88,7 +88,7 @@ def chat_with_llama_server_http(model: str, content: str, timeout: int = 300) ->
 def get_available_llamacpp_models():
     """Return list of available llama.cpp models."""
     models = []
-    for model_dir in LLAMACPP_MODEL_DIRS:
+    for model_dir in LLAMA_CPP_MODEL_DIRS:
         dir_path = os.path.join(GGUF_DIR, model_dir)
         if os.path.exists(dir_path):
             try:
@@ -102,7 +102,7 @@ def get_available_llamacpp_models():
 
 def resolve_model_path(model: str) -> Optional[str]:
     """Resolve model name to full GGUF file path."""
-    for model_dir in LLAMACPP_MODEL_DIRS:
+    for model_dir in LLAMA_CPP_MODEL_DIRS:
         dir_path = os.path.join(GGUF_DIR, model_dir)
         if not os.path.exists(dir_path):
             continue
@@ -171,7 +171,7 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
         output_lines = stdout_text.strip().split('\n')
         response_lines = []
         for line in output_lines:
-            if any(skip_pattern in line for skip_pattern in LLAMACPP_SKIP_PATTERNS):
+            if any(skip_pattern in line for skip_pattern in LLAMA_CPP_SKIP_PATTERNS):
                 continue
             
             if line.startswith('llama_perf_'):

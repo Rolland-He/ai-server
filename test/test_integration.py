@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Test script for AI server ollama/llama.cpp integration.
-Run this to verify the implementation works correctly.
 """
 
 import sys
@@ -15,7 +14,7 @@ from ai_server.server import (
     chat_with_llamacpp, 
     chat_with_ollama,
     get_available_llamacpp_models,
-    LLAMACPP_MODEL_DIRS
+    LLAMA_CPP_MODEL_DIRS
 )
 
 def test_model_with_llamacpp(models, prompt, description_prefix="", timeout=300):
@@ -80,12 +79,12 @@ def test_available_models():
     """Test that llama.cpp models are available."""
     print("Testing Available Models")
     
-    print(f"Model directories: {LLAMACPP_MODEL_DIRS}")
+    print(f"Model directories: {LLAMA_CPP_MODEL_DIRS}")
     
     available_models = get_available_llamacpp_models()
     print(f"Available llama.cpp models: {available_models}")
     
-    for model_dir in LLAMACPP_MODEL_DIRS:
+    for model_dir in LLAMA_CPP_MODEL_DIRS:
         dir_path = f"/data1/GGUF/{model_dir}"
         exists = os.path.exists(dir_path)
         status = "FOUND" if exists else "MISSING"
