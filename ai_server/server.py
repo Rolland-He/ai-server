@@ -21,7 +21,7 @@ DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'deepseek-coder-v2:latest')
 LLAMA_CPP_CLI = os.getenv('LLAMA_CPP_CLI', '/data1/llama.cpp/bin/llama-cli')
 GGUF_DIR = os.getenv('GGUF_DIR', '/data1/GGUF')
 
-# Llama server configuration - now uses environment variable
+# Llama server configuration
 _llama_server_url = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080 or localhost:8080
 LLAMA_SERVER_URL = f"http://{_llama_server_url}" if _llama_server_url and not _llama_server_url.startswith(('http://', 'https://')) else _llama_server_url
 
