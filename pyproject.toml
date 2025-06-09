@@ -21,9 +21,9 @@ license-files = ["LICEN[CS]E*"]
 dependencies = [
     "flask",
     "ollama",
+    "python-dotenv",
     "redis",
     "requests",
-    "python-dotenv",
 ]
 
 

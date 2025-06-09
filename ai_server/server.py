@@ -5,6 +5,7 @@ import os
 import requests
 from typing import Optional
 from dotenv import load_dotenv
+import glob
 
 from .redis_helper import REDIS_CONNECTION
 
@@ -20,23 +21,8 @@ LLAMA_CPP_CLI = '/data1/llama.cpp/bin/llama-cli'
 GGUF_DIR = '/data1/GGUF'
 
 # Llama server configuration - now uses environment variable
-LLAMA_SERVER_URL = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080
-
-# Known llama.cpp model in /data1/GGUF/
-# We could add more models here if needed.
-LLAMA_CPP_MODEL_DIRS = [
-    'DeepSeek-V2.5-IQ1_M',
-    'DeepSeek-V3-0324-UD-IQ2_XXS', 
-    'DeepSeek-V3-0324-UD-Q2_K_XL'
-]
-
-# Output parsing skip patterns for llama-cli
-LLAMA_CPP_SKIP_PATTERNS = [
-    'ggml_cuda_init:', 'warning:', 'build:', 'main:', 'llama_model_loader:',
-    'print_info:', 'load:', 'load_tensors:', 'llama_context:', 
-    'common_init_from_params:', 'system_info:', 'sampler', 'generate:'
-]
-
+_llama_server_url = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080 or localhost:8080
+LLAMA_SERVER_URL = f"http://{_llama_server_url}" if _llama_server_url and not _llama_server_url.startswith(('http://', 'https://')) else _llama_server_url
 
 def chat_with_llama_server_http(model: str, content: str, timeout: int = 300) -> str:
     """Handle chat using llama-server HTTP API."""
@@ -63,64 +49,18 @@ def chat_with_llama_server_http(model: str, content: str, timeout: int = 300) ->
             else:
                 raise Exception("Invalid response format from llama-server")
         else:
-            response = requests.post(
-                f'{LLAMA_SERVER_URL}/completion',
-                json={
-                    'prompt': content,
-                    'n_predict': 512,
-                    'stream': False
-                },
-                headers={'Content-Type': 'application/json'},
-                timeout=timeout
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data.get('content', 'No response generated.')
-            else:
-                raise Exception(f"Llama-server HTTP error: {response.status_code} - {response.text}")
+            raise Exception(f"Llama-server HTTP error")
                 
     except requests.Timeout:
         raise Exception(f"Llama-server request timed out for model {model}")
     except requests.RequestException as e:
         raise Exception(f"Llama-server request failed: {str(e)}")
 
-def get_available_llamacpp_models():
-    """Return list of available llama.cpp models."""
-    models = []
-    for model_dir in LLAMA_CPP_MODEL_DIRS:
-        dir_path = os.path.join(GGUF_DIR, model_dir)
-        if os.path.exists(dir_path):
-            try:
-                files = os.listdir(dir_path)
-                for file in files:
-                    if file.endswith('.gguf'):
-                        models.append(f"{model_dir}/{file}")
-            except Exception:
-                continue
-    return models
-
 def resolve_model_path(model: str) -> Optional[str]:
-    """Resolve model name to full GGUF file path."""
-    for model_dir in LLAMA_CPP_MODEL_DIRS:
-        dir_path = os.path.join(GGUF_DIR, model_dir)
-        if not os.path.exists(dir_path):
-            continue
-            
-        try:
-            files = os.listdir(dir_path)
-            gguf_files = [f for f in files if f.endswith('.gguf')]
-            
-            for file in gguf_files:
-                if (model == model_dir or  # Directory name match
-                    model == f"{model_dir}/{file}" or  # Full path match
-                    model == file or  # Filename match
-                    model == os.path.splitext(file)[0]):  # Name without extension
-                    return os.path.join(dir_path, file)
-        except Exception:
-            continue
-    
-    return None
+    """Resolve model name to full GGUF file path using glob pattern."""
+    pattern = os.path.join(GGUF_DIR, model, "*.gguf")
+    matches = glob.glob(pattern)
+    return matches[0] if matches else None
 
 def is_llamacpp_available(model: str) -> bool:
     """Check if model is available in llama.cpp."""
@@ -140,8 +80,7 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
     model_path = resolve_model_path(model)
     
     if not model_path:
-        available_models = get_available_llamacpp_models()
-        raise ValueError(f"Model not found: {model}. Available models: {available_models}")
+        raise ValueError(f"Model not found: {model}")
     
     cmd = [
         LLAMA_CPP_CLI,
@@ -149,8 +88,7 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
         '--n-gpu-layers', '40',
         '-p', content,
         '-n', '512',
-        '--no-display-prompt',
-        '-no-cnv'
+        '--single-turn'
     ]
     
     try:
@@ -162,25 +100,10 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
             check=True
         )
         
-        # For V3 IQ1_M and IQ2_XXS models
-        try:
-            stdout_text = result.stdout.decode('utf-8')
-        except UnicodeDecodeError:
-            stdout_text = result.stdout.decode('utf-8', errors='replace')
+        stdout_text = result.stdout.decode('utf-8', errors='replace')
 
-        output_lines = stdout_text.strip().split('\n')
-        response_lines = []
-        for line in output_lines:
-            if any(skip_pattern in line for skip_pattern in LLAMA_CPP_SKIP_PATTERNS):
-                continue
-            
-            if line.startswith('llama_perf_'):
-                break
-                
-            if line.strip():
-                response_lines.append(line.strip())
-        
-        response = ' '.join(response_lines) if response_lines else ""
+        # Strip whitespace and return the response
+        response = stdout_text.strip()
         return response if response else "No response generated."
         
     except subprocess.TimeoutExpired:
@@ -188,61 +111,25 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
     except subprocess.CalledProcessError as e:
         stderr_text = ""
         if e.stderr:
-            try:
-                stderr_text = e.stderr.decode('utf-8')
-            except UnicodeDecodeError:
-                stderr_text = e.stderr.decode('utf-8', errors='replace')
+            stderr_text = e.stderr.decode('utf-8', errors='replace')
         raise Exception(f"Llama.cpp failed for {model}: {stderr_text.strip() if stderr_text else 'Unknown error'}")
     except FileNotFoundError:
         raise Exception("Llama.cpp CLI not found")
 
 def chat_with_model(model: str, content: str, llama_mode: str = "cli") -> str:
-    """Route chat request based on llama_mode: server (external), cli, or default fallback."""
-    if llama_mode == "server":
-        # Use external llama-server with fallbacks
-        if not LLAMA_SERVER_URL:
-            raise Exception("LLAMA_SERVER_URL environment variable not set for server mode")
-        
-        if is_llamacpp_available(model):
-            try:
-                return chat_with_llama_server_http(model, content)
-            except Exception:
-                # Fallback to llama-cli if server fails
-                try:
-                    return chat_with_llamacpp(model, content)
-                except Exception:
-                    # Final fallback to ollama
-                    return chat_with_ollama(model, content)
+    """Route chat request based on llama_mode: server (external), cli, or ollama fallback."""
+    if is_llamacpp_available(model):
+        if llama_mode == "server":
+            if not LLAMA_SERVER_URL:
+                raise Exception("LLAMA_SERVER_URL environment variable not set for server mode")
+            return chat_with_llama_server_http(model, content)
+        elif llama_mode == "cli":
+            return chat_with_llamacpp(model, content)
         else:
-            # Model not available in llama.cpp, use ollama
-            return chat_with_ollama(model, content)
-    
-    elif llama_mode == "cli":
-        if is_llamacpp_available(model):
-            try:
-                return chat_with_llamacpp(model, content)
-            except Exception:
-                # Fallback to ollama if llama-cli fails
-                try:
-                    return chat_with_ollama(model, content)
-                except Exception as e_ollama:
-                    available_llamacpp = get_available_llamacpp_models()
-                    raise Exception(f"Model '{model}' failed in both llama-cli and ollama. "
-                                   f"Available llama.cpp models: {available_llamacpp}. "
-                                   f"Ollama error: {str(e_ollama)}")
-        else:
-            # Model not available in llama.cpp, try ollama
-            try:
-                return chat_with_ollama(model, content)
-            except Exception as e:
-                available_llamacpp = get_available_llamacpp_models()
-                raise Exception(f"Model '{model}' not available in llama.cpp and failed in ollama. "
-                               f"Available llama.cpp models: {available_llamacpp}. "
-                               f"Ollama error: {str(e)}")
-    
+            raise ValueError(f"Invalid llama_mode: '{llama_mode}'. Valid options are 'server' or 'cli'.")
     else:
-        # Default
-        return chat_with_model(model, content, "cli")
+        # Model not available in llama.cpp, use ollama
+        return chat_with_ollama(model, content)
 
 
 def authenticate() -> str:
@@ -270,12 +157,8 @@ def chat():
     if not content.strip():
         abort(400, description='Missing prompt content')
 
-    try:
-        response_content = chat_with_model(model, content, llama_mode)
-        return jsonify(response_content)
-        
-    except Exception as e:
-        abort(500, description=str(e))
+    response_content = chat_with_model(model, content, llama_mode)
+    return jsonify(response_content)
 
 @app.errorhandler(Exception)
 def internal_error(error):
