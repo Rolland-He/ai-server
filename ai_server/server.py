@@ -20,7 +20,6 @@ DEFAULT_MODEL = 'deepseek-coder-v2:latest'
 LLAMA_CPP_CLI = '/data1/llama.cpp/bin/llama-cli'
 GGUF_DIR = '/data1/GGUF'
 
-# Llama server configuration - now uses environment variable
 _llama_server_url = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080 or localhost:8080
 LLAMA_SERVER_URL = f"http://{_llama_server_url}" if _llama_server_url and not _llama_server_url.startswith(('http://', 'https://')) else _llama_server_url
 
@@ -102,7 +101,6 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
         
         stdout_text = result.stdout.decode('utf-8', errors='replace')
 
-        # Strip whitespace and return the response
         response = stdout_text.strip()
         return response if response else "No response generated."
         
