@@ -25,17 +25,22 @@ GGUF_DIR = os.getenv('GGUF_DIR', '/data1/GGUF')
 _llama_server_url = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080 or localhost:8080
 LLAMA_SERVER_URL = f"http://{_llama_server_url}" if _llama_server_url and not _llama_server_url.startswith(('http://', 'https://')) else _llama_server_url
 
-def chat_with_llama_server_http(model: str, content: str, timeout: int = 300) -> str:
+def chat_with_llama_server_http(model: str, content: str, system_prompt: Optional[str] = None, timeout: int = 300) -> str:
     """Handle chat using llama-server HTTP API."""
     if not LLAMA_SERVER_URL:
         raise Exception("LLAMA_SERVER_URL environment variable not set")
     
     try:
+        messages = []
+        if system_prompt:
+            messages.append({'role': 'system', 'content': system_prompt})
+        messages.append({'role': 'user', 'content': content})
+        
         response = requests.post(
             f'{LLAMA_SERVER_URL}/v1/chat/completions',
             json={
                 'model': model,
-                'messages': [{'role': 'user', 'content': content}],
+                'messages': messages,
                 'stream': False,
                 'max_tokens': 512
             },
@@ -67,27 +72,38 @@ def is_llamacpp_available(model: str) -> bool:
     """Check if model is available in llama.cpp."""
     return resolve_model_path(model) is not None
 
-def chat_with_ollama(model: str, content: str) -> str:
+def chat_with_ollama(model: str, content: str, system_prompt: Optional[str] = None) -> str:
     """Handle chat using ollama."""
+    messages = []
+    if system_prompt:
+        messages.append({'role': 'system', 'content': system_prompt})
+    messages.append({'role': 'user', 'content': content})
+    
     response = ollama.chat(
         model=model,
-        messages=[{'role': 'user', 'content': content}],
+        messages=messages,
         stream=False
     )
     return response.message.content
 
-def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
+def chat_with_llamacpp(model: str, content: str, system_prompt: Optional[str] = None, timeout: int = 300) -> str:
     """Handle chat using llama.cpp CLI."""
     model_path = resolve_model_path(model)
     
     if not model_path:
         raise ValueError(f"Model not found: {model}")
     
+    # Format prompt with system prompt if provided
+    if system_prompt:
+        formatted_prompt = f"System: {system_prompt}\n\nUser: {content}\n\nAssistant:"
+    else:
+        formatted_prompt = content
+    
     cmd = [
         LLAMA_CPP_CLI,
         '-m', model_path,
         '--n-gpu-layers', '40',
-        '-p', content,
+        '-p', formatted_prompt,
         '-n', '512',
         '--single-turn'
     ]
@@ -117,20 +133,20 @@ def chat_with_llamacpp(model: str, content: str, timeout: int = 300) -> str:
     except FileNotFoundError:
         raise Exception("Llama.cpp CLI not found")
 
-def chat_with_model(model: str, content: str, llama_mode: str = "cli") -> str:
+def chat_with_model(model: str, content: str, llama_mode: str = "cli", system_prompt: Optional[str] = None) -> str:
     """Route chat request based on llama_mode: server (external), cli, or ollama fallback."""
     if is_llamacpp_available(model):
         if llama_mode == "server":
             if not LLAMA_SERVER_URL:
                 raise Exception("LLAMA_SERVER_URL environment variable not set for server mode")
-            return chat_with_llama_server_http(model, content)
+            return chat_with_llama_server_http(model, content, system_prompt)
         elif llama_mode == "cli":
-            return chat_with_llamacpp(model, content)
+            return chat_with_llamacpp(model, content, system_prompt)
         else:
             raise ValueError(f"Invalid llama_mode: '{llama_mode}'. Valid options are 'server' or 'cli'.")
     else:
         # Model not available in llama.cpp, use ollama
-        return chat_with_ollama(model, content)
+        return chat_with_ollama(model, content, system_prompt)
 
 
 def authenticate() -> str:
@@ -148,17 +164,18 @@ def authenticate() -> str:
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    """Handle chat request with optional llama_mode parameter."""
+    """Handle chat request with optional llama_mode and system prompt parameters."""
     authenticate()
     params = request.get_json()
     model = params.get('model', DEFAULT_MODEL)
     content = params.get('content', '')
     llama_mode = params.get('llama_mode', 'cli')
+    system_prompt = params.get('system_prompt')
     
     if not content.strip():
         abort(400, description='Missing prompt content')
 
-    response_content = chat_with_model(model, content, llama_mode)
+    response_content = chat_with_model(model, content, llama_mode, system_prompt)
     return jsonify(response_content)
 
 @app.errorhandler(Exception)
