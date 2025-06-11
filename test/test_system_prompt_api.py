@@ -4,9 +4,6 @@ from unittest.mock import patch
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from ai_server.server import app
-
 TEST_MODEL = 'DeepSeek-V3-0324-UD-IQ2_XXS'
 TEST_SYSTEM_PROMPT = "You are a helpful coding assistant."
 TEST_USER_CONTENT = "Write a function"
@@ -23,6 +20,7 @@ class TestSystemPromptAPI:
     @pytest.fixture
     def client(self):
         """Create test client for Flask app."""
+        from ai_server.server import app
         app.config['TESTING'] = True
         with app.test_client() as client:
             yield client

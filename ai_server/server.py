@@ -134,7 +134,7 @@ def chat_with_llamacpp(model: str, content: str, system_prompt: Optional[str] = 
         raise Exception("Llama.cpp CLI not found")
 
 def chat_with_model(model: str, content: str, llama_mode: str = "cli", system_prompt: Optional[str] = None) -> str:
-    """Route chat request based on llama_mode: server (external), cli, or ollama fallback."""
+    """Route chat request based on llama_mode: server (external), cli, or ollama fallback; and with optional system prompt."""
     if is_llamacpp_available(model):
         if llama_mode == "server":
             if not LLAMA_SERVER_URL:
