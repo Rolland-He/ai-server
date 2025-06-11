@@ -93,20 +93,18 @@ def chat_with_llamacpp(model: str, content: str, system_prompt: Optional[str] = 
     if not model_path:
         raise ValueError(f"Model not found: {model}")
     
-    # Format prompt with system prompt if provided
-    if system_prompt:
-        formatted_prompt = f"System: {system_prompt}\n\nUser: {content}\n\nAssistant:"
-    else:
-        formatted_prompt = content
-    
     cmd = [
         LLAMA_CPP_CLI,
         '-m', model_path,
         '--n-gpu-layers', '40',
-        '-p', formatted_prompt,
+        '-p', content,
         '-n', '512',
         '--single-turn'
     ]
+    
+    # Add system prompt if provided
+    if system_prompt:
+        cmd.extend(['--system-prompt', system_prompt])
     
     try:
         result = subprocess.run(
