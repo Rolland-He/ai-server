@@ -25,16 +25,21 @@ GGUF_DIR = os.getenv('GGUF_DIR', '/data1/GGUF')
 _llama_server_url = os.getenv('LLAMA_SERVER_URL')  # e.g., http://localhost:8080 or localhost:8080
 LLAMA_SERVER_URL = f"http://{_llama_server_url}" if _llama_server_url and not _llama_server_url.startswith(('http://', 'https://')) else _llama_server_url
 
+def _build_messages(content: str, system_prompt: Optional[str] = None) -> list:
+    """Build messages list with optional system prompt."""
+    messages = []
+    if system_prompt:
+        messages.append({'role': 'system', 'content': system_prompt})
+    messages.append({'role': 'user', 'content': content})
+    return messages
+
 def chat_with_llama_server_http(model: str, content: str, system_prompt: Optional[str] = None, timeout: int = 300) -> str:
     """Handle chat using llama-server HTTP API."""
     if not LLAMA_SERVER_URL:
         raise Exception("LLAMA_SERVER_URL environment variable not set")
     
     try:
-        messages = []
-        if system_prompt:
-            messages.append({'role': 'system', 'content': system_prompt})
-        messages.append({'role': 'user', 'content': content})
+        messages = _build_messages(content, system_prompt)
         
         response = requests.post(
             f'{LLAMA_SERVER_URL}/v1/chat/completions',
@@ -74,10 +79,7 @@ def is_llamacpp_available(model: str) -> bool:
 
 def chat_with_ollama(model: str, content: str, system_prompt: Optional[str] = None) -> str:
     """Handle chat using ollama."""
-    messages = []
-    if system_prompt:
-        messages.append({'role': 'system', 'content': system_prompt})
-    messages.append({'role': 'user', 'content': content})
+    messages = _build_messages(content, system_prompt)
     
     response = ollama.chat(
         model=model,

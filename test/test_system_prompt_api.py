@@ -1,14 +1,12 @@
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import sys
 
-os.environ.setdefault('REDIS_URL', 'redis://localhost:6379')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ai_server.server import app
 
-# Test constants
 TEST_MODEL = 'DeepSeek-V3-0324-UD-IQ2_XXS'
 TEST_SYSTEM_PROMPT = "You are a helpful coding assistant."
 TEST_USER_CONTENT = "Write a function"
@@ -16,6 +14,11 @@ TEST_USER_CONTENT = "Write a function"
 
 class TestSystemPromptAPI:
     """Test /chat API endpoint with system_prompt functionality."""
+    
+    @pytest.fixture(autouse=True)
+    def setup_env(self, monkeypatch):
+        """Set up environment variables for each test."""
+        monkeypatch.setenv('REDIS_URL', 'redis://localhost:6379')
     
     @pytest.fixture
     def client(self):

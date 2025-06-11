@@ -3,7 +3,6 @@ import os
 from unittest.mock import patch, MagicMock
 import sys
 
-os.environ.setdefault('REDIS_URL', 'redis://localhost:6379')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ai_server.server import (
@@ -20,6 +19,11 @@ TEST_USER_CONTENT = "Write a function"
 
 class TestSystemPromptCore:
     """Core system prompt functionality tests."""
+    
+    @pytest.fixture(autouse=True)
+    def setup_env(self, monkeypatch):
+        """Set up environment variables for each test."""
+        monkeypatch.setenv('REDIS_URL', 'redis://localhost:6379')
     
     @patch('ai_server.server.subprocess.run')
     @patch('ai_server.server.resolve_model_path')
