@@ -17,15 +17,38 @@ TEST_LLAMACPP_MODEL = 'DeepSeek-V3-0324-UD-IQ2_XXS'
 TEST_OLLAMA_MODEL = 'deepseek-coder-v2:latest'
 
 
+@pytest.fixture
+def mock_subprocess():
+    """Mock subprocess.run for CLI tests."""
+    with patch('ai_server.server.subprocess.run') as mock:
+        yield mock
+
+@pytest.fixture
+def mock_resolve_model_path():
+    """Mock resolve_model_path for CLI tests."""
+    with patch('ai_server.server.resolve_model_path') as mock:
+        yield mock
+
+@pytest.fixture
+def mock_glob():
+    """Mock glob.glob for model discovery tests."""
+    with patch('ai_server.server.glob.glob') as mock:
+        yield mock
+
+@pytest.fixture
+def mock_ollama():
+    """Mock ollama.chat for fallback tests."""
+    with patch('ai_server.server.ollama.chat') as mock:
+        yield mock
+
+
 class TestLlamaCppCLI:
     """Test llama.cpp CLI execution."""
     
-    @patch('ai_server.server.subprocess.run')
-    @patch('ai_server.server.resolve_model_path')
-    def test_chat_with_llamacpp_success(self, mock_resolve, mock_subprocess):
+    def test_chat_with_llamacpp_success(self, mock_resolve_model_path, mock_subprocess):
         """Test successful CLI chat with llama.cpp."""
         model_path = f'/data1/GGUF/{TEST_LLAMACPP_MODEL}/{TEST_LLAMACPP_MODEL}.gguf'
-        mock_resolve.return_value = model_path
+        mock_resolve_model_path.return_value = model_path
         
         mock_result = MagicMock()
         mock_result.stdout = b'I can help you with DeepSeek V3.'
@@ -34,7 +57,7 @@ class TestLlamaCppCLI:
         result = chat_with_llamacpp(TEST_LLAMACPP_MODEL, 'Hello, can you help me code?')
         
         assert result == "I can help you with DeepSeek V3."
-        mock_resolve.assert_called_once_with(TEST_LLAMACPP_MODEL)
+        mock_resolve_model_path.assert_called_once_with(TEST_LLAMACPP_MODEL)
         
         # Verify correct CLI command structure
         args, kwargs = mock_subprocess.call_args
@@ -44,19 +67,16 @@ class TestLlamaCppCLI:
         assert '--n-gpu-layers' in cmd and '40' in cmd
         assert '--single-turn' in cmd
     
-    @patch('ai_server.server.resolve_model_path')
-    def test_chat_with_llamacpp_model_not_found(self, mock_resolve):
+    def test_chat_with_llamacpp_model_not_found(self, mock_resolve_model_path):
         """Test CLI chat when model is not found."""
-        mock_resolve.return_value = None
+        mock_resolve_model_path.return_value = None
         
         with pytest.raises(ValueError, match="Model not found: nonexistent-model"):
             chat_with_llamacpp('nonexistent-model', 'Hello')
     
-    @patch('ai_server.server.subprocess.run')
-    @patch('ai_server.server.resolve_model_path')
-    def test_chat_with_llamacpp_subprocess_error(self, mock_resolve, mock_subprocess):
+    def test_chat_with_llamacpp_subprocess_error(self, mock_resolve_model_path, mock_subprocess):
         """Test CLI chat when subprocess fails."""
-        mock_resolve.return_value = f'/data1/GGUF/{TEST_LLAMACPP_MODEL}/{TEST_LLAMACPP_MODEL}.gguf'
+        mock_resolve_model_path.return_value = f'/data1/GGUF/{TEST_LLAMACPP_MODEL}/{TEST_LLAMACPP_MODEL}.gguf'
         
         error = subprocess.CalledProcessError(1, 'cmd')
         error.stderr = b'CUDA out of memory'
@@ -69,51 +89,54 @@ class TestLlamaCppCLI:
 class TestCLIModeRouting:
     """Test CLI mode routing and fallback logic."""
     
-    @patch('ai_server.server.chat_with_llamacpp')
-    @patch('ai_server.server.is_llamacpp_available')
-    def test_cli_mode_uses_llamacpp_when_available(self, mock_available, mock_chat_llamacpp):
+    @pytest.fixture(autouse=True)
+    def setup_routing_mocks(self):
+        """Set up common mocks for routing tests."""
+        with patch('ai_server.server.chat_with_llamacpp') as mock_chat_llamacpp, \
+             patch('ai_server.server.is_llamacpp_available') as mock_available, \
+             patch('ai_server.server.chat_with_ollama') as mock_chat_ollama:
+            self.mock_chat_llamacpp = mock_chat_llamacpp
+            self.mock_available = mock_available  
+            self.mock_chat_ollama = mock_chat_ollama
+            yield
+    
+    def test_cli_mode_uses_llamacpp_when_available(self):
         """Test CLI mode routes to llama.cpp when model is available."""
-        mock_available.return_value = True
-        mock_chat_llamacpp.return_value = "CLI response from DeepSeek V3"
+        self.mock_available.return_value = True
+        self.mock_chat_llamacpp.return_value = "CLI response from DeepSeek V3"
         
         result = chat_with_model(TEST_LLAMACPP_MODEL, 'Write a function', llama_mode='cli')
         
         assert result == "CLI response from DeepSeek V3"
-        mock_available.assert_called_once_with(TEST_LLAMACPP_MODEL)
-        mock_chat_llamacpp.assert_called_once_with(TEST_LLAMACPP_MODEL, 'Write a function')
+        self.mock_available.assert_called_once_with(TEST_LLAMACPP_MODEL)
+        self.mock_chat_llamacpp.assert_called_once_with(TEST_LLAMACPP_MODEL, 'Write a function')
     
-    @patch('ai_server.server.chat_with_ollama')
-    @patch('ai_server.server.is_llamacpp_available')
-    def test_cli_mode_fallback_to_ollama_when_unavailable(self, mock_available, mock_chat_ollama):
+    def test_cli_mode_fallback_to_ollama_when_unavailable(self):
         """Test CLI mode falls back to ollama when model not available in llama.cpp."""
-        mock_available.return_value = False
-        mock_chat_ollama.return_value = "Ollama response from DeepSeek Coder"
+        self.mock_available.return_value = False
+        self.mock_chat_ollama.return_value = "Ollama response from DeepSeek Coder"
         
         result = chat_with_model(TEST_OLLAMA_MODEL, 'Help with coding', llama_mode='cli')
         
         assert result == "Ollama response from DeepSeek Coder"
-        mock_available.assert_called_once_with(TEST_OLLAMA_MODEL)
-        mock_chat_ollama.assert_called_once_with(TEST_OLLAMA_MODEL, 'Help with coding')
+        self.mock_available.assert_called_once_with(TEST_OLLAMA_MODEL)
+        self.mock_chat_ollama.assert_called_once_with(TEST_OLLAMA_MODEL, 'Help with coding')
     
-    @patch('ai_server.server.chat_with_llamacpp')
-    @patch('ai_server.server.is_llamacpp_available')
-    def test_default_mode_is_cli(self, mock_available, mock_chat_llamacpp):
+    def test_default_mode_is_cli(self):
         """Test that default mode is CLI when no llama_mode specified."""
-        mock_available.return_value = True
-        mock_chat_llamacpp.return_value = "Default CLI mode response"
+        self.mock_available.return_value = True
+        self.mock_chat_llamacpp.return_value = "Default CLI mode response"
         
         result = chat_with_model(TEST_LLAMACPP_MODEL, 'Help me')  # No llama_mode specified
         
         assert result == "Default CLI mode response"
-        mock_available.assert_called_once_with(TEST_LLAMACPP_MODEL)
-        mock_chat_llamacpp.assert_called_once_with(TEST_LLAMACPP_MODEL, 'Help me')
+        self.mock_available.assert_called_once_with(TEST_LLAMACPP_MODEL)
+        self.mock_chat_llamacpp.assert_called_once_with(TEST_LLAMACPP_MODEL, 'Help me')
 
 
 class TestCLIModeIntegration:
     """Test complete CLI mode integration flows."""
     
-    @patch('ai_server.server.subprocess.run')
-    @patch('ai_server.server.glob.glob')
     def test_complete_cli_flow_with_real_model(self, mock_glob, mock_subprocess):
         """Test complete CLI flow: model resolution → CLI execution."""
         model_path = f'/data1/GGUF/{TEST_LLAMACPP_MODEL}/{TEST_LLAMACPP_MODEL}.gguf'
@@ -130,8 +153,6 @@ class TestCLIModeIntegration:
         assert mock_glob.call_count == 2
         mock_subprocess.assert_called_once()
     
-    @patch('ai_server.server.ollama.chat')
-    @patch('ai_server.server.glob.glob')
     def test_complete_cli_fallback_flow_to_ollama(self, mock_glob, mock_ollama):
         """Test complete CLI fallback flow: model not found → fallback to ollama."""
         # Mock model not found in llama.cpp
