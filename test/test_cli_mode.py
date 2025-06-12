@@ -168,4 +168,3 @@ class TestCLIModeIntegration:
         assert result == "Ollama CLI fallback integration test successful!"
         mock_glob.assert_called_once_with(f'/data1/GGUF/{TEST_OLLAMA_MODEL}/*.gguf')
         mock_ollama.assert_called_once() 
-        

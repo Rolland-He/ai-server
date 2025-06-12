@@ -103,4 +103,3 @@ class TestOllamaCore:
         
         with pytest.raises(Exception, match="model 'nonexistent:latest' not found"):
             chat_with_ollama('nonexistent:latest', 'Hello') 
-            
