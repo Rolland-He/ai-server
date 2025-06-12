@@ -1,5 +1,4 @@
 import pytest
-import os
 from unittest.mock import patch
 
 TEST_MODEL = 'DeepSeek-V3-0324-UD-IQ2_XXS'
