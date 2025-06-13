@@ -1,10 +1,8 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
-import sys
 
 os.environ.setdefault('REDIS_URL', 'redis://localhost:6379')
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ai_server.server import (
     chat_with_llama_server_http,
